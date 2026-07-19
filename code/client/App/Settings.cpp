@@ -7,8 +7,16 @@ void Settings::Load()
 
     auto& launchParameters = RED4ext::GetLaunchParameters();
 
+    // -online no longer gates the mod (it is always-on now); it arms a boot-time
+    // pending session that auto-connects on the next world attach using -ip/-port
+    // below. Dev / observer / back-compat path.
     if (launchParameters.Contains(RED4ext::CString("-online")))
-        settings.enabled = true;
+        settings.pendingSession = true;
+
+    // -debug enables the dev-only ImGui overlay (DebugService). Default off so no
+    // player ever sees an in-game connect button.
+    if (launchParameters.Contains(RED4ext::CString("-debug")))
+        settings.debug = true;
 
     if (const auto ip = launchParameters.Get("-ip"); ip)
     {

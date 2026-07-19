@@ -148,10 +148,6 @@ void NetworkWorldSystem::Update(uint64_t aTick)
 
 void NetworkWorldSystem::OnWorldAttached(RED4ext::world::RuntimeScene* aScene)
 {
-    if (Settings::IsDisabled())
-    {
-        return;
-    }
     spdlog::info("[NetworkWorldSystem] OnWorldAttached");
     IGameSystem::OnWorldAttached(aScene);
 
@@ -165,10 +161,6 @@ void NetworkWorldSystem::OnWorldAttached(RED4ext::world::RuntimeScene* aScene)
 
 void NetworkWorldSystem::OnAfterWorldDetach()
 {
-    if (Settings::IsDisabled())
-    {
-        return;
-    }
     spdlog::info("[NetworkWorldSystem] OnAfterWorldDetach");
     m_ready = false;
 
@@ -183,10 +175,6 @@ void NetworkWorldSystem::OnAfterWorldDetach()
 
 void NetworkWorldSystem::OnBeforeWorldDetach(RED4ext::world::RuntimeScene* aScene)
 {
-    if (Settings::IsDisabled())
-    {
-        return;
-    }
     IGameSystem::OnBeforeWorldDetach(aScene);
 
     m_appearanceSystem->OnBeforeWorldDetach(aScene);
@@ -414,9 +402,6 @@ void NetworkWorldSystem::OnInitialize(const RED4ext::JobHandle& aJob)
 
     IGameSystem::OnInitialize(aJob);
 
-    if (Settings::IsDisabled())
-        return;
-
     const auto pNetworkService = Core::Container::Get<NetworkService>();
     pNetworkService->RegisterHandler<&NetworkWorldSystem::HandleCharacterLoad>(this);
     pNetworkService->RegisterHandler<&NetworkWorldSystem::HandleEntityUnload>(this);
@@ -444,6 +429,28 @@ void NetworkWorldSystem::Connect()
 {
     auto address = fmt::format("{}:{}", Settings::Get().ip, Settings::Get().port);
     Core::Container::Get<NetworkService>()->Connect(address);
+}
+
+void NetworkWorldSystem::ConnectTo(const Red::CString& aIp, uint32_t aPort)
+{
+    Settings::SetEndpoint(aIp.c_str(), static_cast<uint16_t>(aPort));
+    Connect();
+}
+
+void NetworkWorldSystem::SetPendingSession(const Red::CString& aIp, uint32_t aPort)
+{
+    Settings::SetEndpoint(aIp.c_str(), static_cast<uint16_t>(aPort));
+    Settings::Get().pendingSession = true;
+}
+
+bool NetworkWorldSystem::HasPendingSession() const
+{
+    return Settings::Get().pendingSession;
+}
+
+void NetworkWorldSystem::ClearPendingSession()
+{
+    Settings::Get().pendingSession = false;
 }
 
 void NetworkWorldSystem::Disconnect()

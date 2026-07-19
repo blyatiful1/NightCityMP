@@ -40,7 +40,15 @@ struct NetworkWorldSystem : RED4ext::IGameSystem, Core::HookingAgent, flecs::wor
     void OnInitialize(const RED4ext::JobHandle& aJob) override;
 
     void Connect();
+    void ConnectTo(const Red::CString& aIp, uint32_t aPort);
     void Disconnect();
+
+    // Pending-session state (native-side so it survives save/world reloads).
+    // Consumed one-shot by the world-attach auto-connect redscript hook.
+    void SetPendingSession(const Red::CString& aIp, uint32_t aPort);
+    bool HasPendingSession() const;
+    void ClearPendingSession();
+
     void OnConnected();
     void OnDisconnected(Client::EDisconnectReason);
 
@@ -72,7 +80,11 @@ private:
 RTTI_DEFINE_CLASS(NetworkWorldSystem, { 
     RTTI_ALIAS("CyberpunkMP.World.NetworkWorldSystem");
     RTTI_METHOD(Connect);
+    RTTI_METHOD(ConnectTo);
     RTTI_METHOD(Disconnect);
+    RTTI_METHOD(SetPendingSession);
+    RTTI_METHOD(HasPendingSession);
+    RTTI_METHOD(ClearPendingSession);
     RTTI_METHOD(GetEntityIdByServerId);
     RTTI_METHOD(GetAppearanceSystem);
     RTTI_METHOD(GetInterpolationSystem);

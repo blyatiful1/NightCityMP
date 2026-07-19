@@ -90,9 +90,8 @@ RED4EXT_C_EXPORT bool Main(RED4ext::PluginHandle aHandle, RED4ext::EMainReason a
     }
     case RED4ext::EMainReason::Unload:
     {
-        if (Settings::IsDisabled())
-            return false;
-
+        // Shutdown unconditionally, symmetric with Bootstrap() on Load. The mod
+        // is always-on now, so there is no disabled state to skip teardown for.
         App::GApplication->Shutdown();
         App::GApplication = nullptr;
         break;

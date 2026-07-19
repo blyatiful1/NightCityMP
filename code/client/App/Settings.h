@@ -9,11 +9,14 @@ struct Settings
         static Settings instance;
         return instance;
     }
-    static bool IsDisabled()
-    {
-        return !Get().enabled;
-    }
     static void Load();
+
+    // Point the client at a server endpoint at runtime (menu / native ConnectTo).
+    static void SetEndpoint(const char* aIp, uint16_t aPort)
+    {
+        Get().ip = aIp;
+        Get().port = aPort;
+    }
 
     fs::path exePath{};
     fs::path gamePath{};
@@ -21,7 +24,11 @@ struct Settings
     String ip = "127.0.0.1";
     uint16_t port = 11778;
     Vector<fs::path> mods = {};
-    bool enabled = false;
+    // Auto-connect armed for the next world attach (from -online or the menu).
+    // Native-side state: survives save/world reloads, cleared once consumed.
+    bool pendingSession = false;
+    // Dev-only ImGui debug overlay (-debug). Default off; never a player-facing UI.
+    bool debug = false;
     bool RpcOnly = false;
     fs::path RpcPath{};
 
