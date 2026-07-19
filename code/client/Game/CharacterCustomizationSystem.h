@@ -74,18 +74,35 @@ constexpr auto ScheduleSynchronizedAppearanceChanges = Core::RawFunc<386815609UL
 
 // could use game::ui::CharacterCustomizationState::Serialize to pass data to server
 
+// Silent readiness predicate. Returns true iff the CCS state handle at self+0x78
+// holds a genuine, populated CharacterCustomizationState — the exact RTTI-gated
+// validity test GetCustomizationState() performs, minus the logging. It is the
+// reliable NATIVE readiness signal the rejected script-side ConnectionManager
+// heuristic lacked: safe to poll every frame while the appearance upload is
+// deferred until the engine has actually populated the customization state
+// (menu-driven auto-connect fires in the world-attach window where it is still
+// empty). Bails false on a null system or a drifted/garbage offset.
+inline bool IsCustomizationStateReady(game::ui::CharacterCustomizationSystem * self)
+{
+    if (!self)
+        return false;
+    auto * h = reinterpret_cast<Handle<game::ui::CharacterCustomizationState> *>((uintptr_t)self + 0x78);
+    return h->instance && h->refCount &&
+        h->instance->GetType()->IsA(GetClass<game::ui::CharacterCustomizationState>());
+}
+
 inline Handle<game::ui::CharacterCustomizationState> * GetCustomizationState(game::ui::CharacterCustomizationSystem * self)
 {
     // 2.31a exe audit: self+0x78 is reflection-opaque and the class grew
     // 0x388->0x398 in 2.31 (growth position vs 0x78 unknown), so this offset is a
     // genuine drift RISK. A drifted 0x78 yields a garbage-but-non-null instance
     // that passes a bare null-check and CTDs on the first appearance serialize.
-    // Gate it with RTTI: instance+refCount must be non-null AND the pointed-to
-    // object must really be a CharacterCustomizationState (a drifted offset lands
-    // on a different member whose type will not match). Bail to nullptr on failure.
+    // Gate it with RTTI (via IsCustomizationStateReady): instance+refCount must be
+    // non-null AND the pointed-to object must really be a CharacterCustomizationState
+    // (a drifted offset lands on a different member whose type will not match).
+    // Bail to nullptr on failure.
     auto * h = reinterpret_cast<Handle<game::ui::CharacterCustomizationState> *>((uintptr_t)self + 0x78);
-    if (!h->instance || !h->refCount ||
-        !h->instance->GetType()->IsA(GetClass<game::ui::CharacterCustomizationState>()))
+    if (!IsCustomizationStateReady(self))
     {
         spdlog::error("CCS state handle drift: self+0x78 instance={} type={}",
             fmt::ptr(h->instance),

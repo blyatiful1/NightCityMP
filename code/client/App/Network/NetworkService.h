@@ -61,6 +61,12 @@ protected:
 
     void HandleAuthentication(const PacketEvent<server::AuthenticationResponse>& aResponse);
 
+    // Deferred appearance upload: builds and sends the SpawnCharacterRequest (the
+    // sole ccstate-carrying client->server message in the wire protocol) once the
+    // local player puppet and its CharacterCustomizationSystem state are populated.
+    // Polled each OnUpdate tick while m_pendingSpawn is set; a no-op otherwise.
+    void TrySendSpawnCharacter();
+
     static ScratchAllocator& GetScratch();
 
 private:
@@ -69,6 +75,12 @@ private:
     bool m_ready = false;
     bool m_authenticated = false;
     bool m_isPaused = false;
+    // Set true after a successful auth until the deferred SpawnCharacterRequest is
+    // sent; drives the CCS-readiness poll in OnUpdate.
+    bool m_pendingSpawn = false;
+    // Fallback deadline: if CCS never becomes ready by this point, spawn anyway
+    // with default appearance rather than hang invisibly.
+    std::chrono::time_point<std::chrono::steady_clock> m_spawnDeadline{};
     entt::dispatcher m_dispatcher;
     uint64_t m_lastCharacterUpdate{};
     server::Settings m_settings;
