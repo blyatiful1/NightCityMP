@@ -32,6 +32,12 @@ jobs:
     - name: 'Update apt repositories'
       run: sudo apt-get update
 
+    # pnpm is needed by the Server.Admin target (React/Vite admin panel)
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
     # Install xmake (pinned; matches the windows workflow and local dev)
     - name: 'Setup xmake'
       uses: xmake-io/github-action-setup-xmake@v1
