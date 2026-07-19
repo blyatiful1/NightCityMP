@@ -1,23 +1,27 @@
 name: 'Build windows'
 
+# EXPERIMENT (branch experiment/windows-server-ci): can the FULL SERVER build on
+# windows-2022 + VS2022 + the upstream vs_sdkver pin? Discriminates the two
+# hypotheses for SdkGenerator's silent no-output on windows-latest (VS2026 default
+# since 2026-06 vs. a CppSharp bug). Also answers, for the first time, whether
+# Server.Native's C++ dependency chain compiles on windows at all in this fork,
+# and captures the MSVC-mangled exports for the bindings-portability question.
+
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
-      - main
-      - dev
+      - experiment/windows-server-ci
 
 jobs:
   build:
     strategy:
       matrix:
-        os: [windows-latest]
+        os: [windows-2022]
         arch: [x64]
         mode: [releasedbg]
 
     runs-on: ${{ matrix.os }}
-    if: "!contains(github.event.head_commit.message, 'ci skip')"
 
     steps:
       - uses: actions/checkout@v4
@@ -32,42 +36,56 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/AppData/Local/.xmake/packages
-          key: ${{ runner.os }}-xmake-packages-${{ hashFiles('**/xmake.lua') }}
+          key: ${{ runner.os }}-2022-xmake-packages-${{ hashFiles('**/xmake.lua') }}
           restore-keys: |
-            ${{ runner.os }}-xmake-packages-
+            ${{ runner.os }}-2022-xmake-packages-
 
-      # Install xmake
       - name: 'Setup xmake'
         uses: xmake-io/github-action-setup-xmake@v1
         with:
-          xmake-version: v3.0.9 # Sync with cache key too
-          actions-cache-folder: '.xmake-cache' # This doesn't cache dependencies, only xmake itself
+          xmake-version: v3.0.9
+          actions-cache-folder: '.xmake-cache'
           actions-cache-key: ${{ runner.os }}-xmake-cache-3.0.9
 
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9
+
+      # vs_sdkver pin mirrors upstream tiltedphoques' last known-good windows CI
       - name: 'Configure xmake and install dependencies'
-        run: xmake config --arch=${{ matrix.arch }} --mode=${{ matrix.mode }} --yes
+        run: xmake config --arch=${{ matrix.arch }} --mode=${{ matrix.mode }} --vs_sdkver=10.0.19041.0 --yes
 
-      # Build the client artifact chain only. The server stack is built and
-      # gated by the linux workflow; building it here additionally requires
-      # SdkGenerator's CppSharp (1.1.5, 2024) to parse headers with the
-      # current VS toolchain, which silently generates nothing on 2026
-      # windows-latest images (CyberpunkSdk then fails to compile).
-      # xmake's build/install commands take a single target argument. Building
-      # Client pulls Archives/Inputs/Tweaks/redscript automatically (add_deps),
-      # but install has no dep-closure, so each install-relevant target is
-      # installed explicitly.
-      - name: 'Build with xmake'
-        run: xmake -y Client
+      - name: 'Build server chain'
+        run: xmake -y Server.Loader
 
-      - name: 'Generate build'
-        run: xmake install -o distrib Client && xmake install -o distrib Archives && xmake install -o distrib Inputs && xmake install -o distrib Tweaks && xmake install -o distrib redscript
+      - name: 'Verify SdkGenerator output'
+        shell: pwsh
+        run: |
+          $f = "code/server/scripting/CyberpunkSdk/CyberpunkSdk.Internal.cs"
+          if (!(Test-Path $f)) { Write-Error "Internal.cs NOT generated - SdkGenerator still silent on windows-2022"; exit 1 }
+          $lines = (Get-Content $f).Count
+          Write-Host "Internal.cs generated: $lines lines"
+          if ($lines -lt 100) { Write-Error "Internal.cs suspiciously small"; exit 1 }
+          Write-Host "--- first 5 EntryPoint strings (mangling scheme check) ---"
+          Select-String -Path $f -Pattern 'EntryPoint = "' | Select-Object -First 5
 
-      - name: 'Package build'
-        run: xmake pack
+      - name: 'Dump Server.Native exports (mangling ground truth)'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $dll = Get-ChildItem -Recurse build -Filter Server.Native.dll | Select-Object -First 1
+          if ($dll) {
+            $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+            $dumpbin = Get-ChildItem -Recurse "$vsPath\VC\Tools\MSVC" -Filter dumpbin.exe | Where-Object FullName -match 'Hostx64\\x64' | Select-Object -First 1
+            & $dumpbin.FullName /exports $dll.FullName | Select-Object -First 60
+          } else { Write-Host "Server.Native.dll not found in build/" }
 
-      - name: 'Upload Artifact'
-        if: github.event_name == 'push'
+      - name: 'Upload generated bindings + build log'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build
-          path: build/xpack/NightCityMP/Artifacts.zip
+          name: windows-server-experiment
+          path: |
+            code/server/scripting/CyberpunkSdk/CyberpunkSdk.Internal.cs
+          if-no-files-found: ignore
