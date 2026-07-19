@@ -1,6 +1,7 @@
 
 #include "DebugService.h"
 #include <App/Network/NetworkService.h>
+#include <App/Settings.h>
 
 namespace App
 {
@@ -18,6 +19,11 @@ namespace App
 
     void DebugService::Draw()
     {
+        // Dev-only overlay: gated behind -debug (default off), never behind the
+        // retired enabled flag. No player ever sees an in-game connect button.
+        if (!Settings::Get().debug)
+            return;
+
         if (ImGui::BeginMainMenuBar())
         {
             if (ImGui::BeginMenu("Test"))
