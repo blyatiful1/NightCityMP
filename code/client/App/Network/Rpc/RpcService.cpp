@@ -27,12 +27,23 @@ void RpcService::OnInitialize()
     RpcValidator::Attach();
 
     const auto pNetworkService = Core::Container::Get<NetworkService>();
-    pNetworkService->RegisterHandler<&RpcService::HandleRpc>(this);
+    // Subscribe RpcDefinitions BEFORE RpcCall: entt::dispatcher publishes pools in
+    // first-subscription order, so definitions are applied before any calls that
+    // arrive in the same Client::Update() tick (fast-reconnect race fix, M7).
     pNetworkService->RegisterHandler<&RpcService::HandleRpcDefinitions>(this);
+    pNetworkService->RegisterHandler<&RpcService::HandleRpc>(this);
 }
 
 void RpcService::OnShutdown()
 {
+}
+
+void RpcService::OnDisconnected()
+{
+    // Clear per-session RPC tables so a fast reconnect never dispatches a call
+    // against a stale/mismatched definition table from the previous session.
+    m_serverRpcs.clear();
+    m_clientRpcs.clear();
 }
 
 std::optional<uint32_t> RpcService::GetRpcId(uint64_t aKlass, uint64_t aFunction) const

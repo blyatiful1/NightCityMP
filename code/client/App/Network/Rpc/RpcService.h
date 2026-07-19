@@ -30,6 +30,10 @@ struct RpcService : Core::Feature, Core::HookingAgent
     void OnInitialize() override;
     void OnShutdown() override;
 
+    // Called from NetworkService::OnDisconnected on every disconnect path
+    // (explicit Close() + async status-change) to drop stale RPC tables.
+    void OnDisconnected();
+
     std::optional<uint32_t> GetRpcId(uint64_t aKlass, uint64_t aFunction) const;
 
 protected:

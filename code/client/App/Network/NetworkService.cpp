@@ -53,6 +53,13 @@ void NetworkService::OnConnected()
 void NetworkService::OnDisconnected(EDisconnectReason aReason)
 {
     spdlog::info("Disconnected from server {}", static_cast<uint32_t>(aReason));
+
+    // Clear RPC tables on every disconnect path (explicit Close + async status
+    // change both converge here) so a fast reconnect never dispatches against a
+    // stale definition table.
+    if (const auto pRpcService = Core::Container::Get<RpcService>())
+        pRpcService->OnDisconnected();
+
     Red::GetGameSystem<NetworkWorldSystem>()->OnDisconnected(aReason);
 
     m_authenticated = false;
