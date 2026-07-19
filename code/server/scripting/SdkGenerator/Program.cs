@@ -34,6 +34,12 @@ internal class CyberpunkSdk : ILibrary
 
         var parserOptions = driver.ParserOptions;
         parserOptions.AddDefines("WIN32");
+        // MSVC 14.44+ STL hard-refuses parsers older than Clang 19 (STL1000 in
+        // yvals_core.h); CppSharp 1.1.5 bundles Clang 16. This is the STL's own
+        // documented escape hatch. Our parsed headers are plain interface files,
+        // so the version gap is tolerable. CppSharp 1.2 (Clang 19) is not a drop-in
+        // (runtimes-only NuGet layout, net9+/net10+ split per platform).
+        parserOptions.AddDefines("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH");
         parserOptions.AddDefines("CPPSHARP_GENERATOR");
 
         var module = options.AddModule(Module);

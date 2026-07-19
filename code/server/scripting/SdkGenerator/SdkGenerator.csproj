@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CppSharp" Version="1.1.84.17100" />
+    <PackageReference Include="CppSharp" Version="1.1.5.3168" />
     <PackageReference Include="LibGit2Sharp" Version="0.29.0" />
   </ItemGroup>
 
