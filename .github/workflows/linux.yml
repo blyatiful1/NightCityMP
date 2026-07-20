@@ -62,10 +62,20 @@ jobs:
     - name: Build
       run: xmake -y
 
-    # Stage the linux server tree for release-kit consumption
-    # (scripts/make-release-kit.sh --server-run <id> downloads this artifact)
-    - name: 'Stage server install'
-      run: xmake install -o distrib Server.Loader && xmake install -o distrib Server.Scripting
+    # Stage the linux server runtime for release-kit consumption
+    # (scripts/make-release-kit.sh --server-run <id> downloads this artifact).
+    # The loader target's on_install is windows-centric (copies Server.Loader.exe,
+    # which does not exist on linux), so stage the runtime files directly from the
+    # build tree instead — this is exactly the self-contained tree the kit expects.
+    - name: 'Stage server bundle'
+      run: |
+        set -e
+        D="build/linux/${{ matrix.arch }}/release"
+        test -f "$D/Server.Loader" || { echo "Server.Loader apphost missing"; exit 1; }
+        mkdir -p distrib
+        cp -a "$D"/Server.Loader "$D"/*.dll "$D"/*.so "$D"/*.json distrib/
+        cp -a "$D"/plugins "$D"/sdk distrib/
+        echo "staged server bundle:"; ls -la distrib
 
     - name: 'Upload server artifact'
       if: github.event_name == 'push'
