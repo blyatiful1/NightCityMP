@@ -83,15 +83,25 @@ if is_plat("windows") then
         set_basename("Artifacts")
         set_author("NightCityMP contributors; based on CyberpunkMP by Tilted Phoques SRL")
         set_description("NightCityMP client mod package (game-root overlay)")
+        -- Mirror the staged game-root overlay (distrib/launcher) into the zip
+        -- so extracting the archive over the game directory drops each file at
+        -- its real path (red4ext/plugins/zzzCyberpunkMP/..., etc.). root_dir must
+        -- be passed so prefixdir is computed RELATIVE TO distrib/launcher; without
+        -- it path.relative(dir, nil) resolves against the project root and every
+        -- entry gets a spurious "distrib/launcher/" prefix.
         local function add_files_recursively(dir, root_dir)
             local relative_path = path.relative(dir, root_dir)
-            add_installfiles(path.join(dir, "*"), {prefixdir = relative_path})
+            if relative_path == "." then
+                add_installfiles(path.join(dir, "*"))
+            else
+                add_installfiles(path.join(dir, "*"), {prefixdir = relative_path})
+            end
             for _, subdir in ipairs(os.dirs(path.join(dir, "*"))) do
                 add_files_recursively(subdir, root_dir)
             end
         end
 
-        add_files_recursively("distrib/launcher")
+        add_files_recursively("distrib/launcher", "distrib/launcher")
 
         set_version("0.1.0.0")
 end
