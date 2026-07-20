@@ -325,7 +325,11 @@ resolve_server_source() {
     local dl="$WORK/server-dl"; mkdir -p "$dl"
     gh run download "$SERVER_RUN" -R "$REPO_SLUG" -D "$dl" \
       || die "gh run download failed for server run $SERVER_RUN"
-    SERVER_SRC="$dl"; return 0
+    # gh places each artifact under a <artifact-name>/ subdir, so Server.Loader is
+    # not at $dl root — locate it wherever it landed and use its directory.
+    local found; found="$(find "$dl" -type f -name Server.Loader | head -n1)"
+    [[ -n "$found" ]] || die "Server.Loader not found in downloaded artifact (run $SERVER_RUN)"
+    SERVER_SRC="$(dirname "$found")"; return 0
   fi
   # Fallback: a local build tree at the conventional path.
   local conv="$REPO_ROOT/build/linux/x86_64/release"
