@@ -16,12 +16,6 @@ public class ChatMessageData extends IScriptable {
     public let m_needsAuthorLabel: Bool = true;
 }
 
-public class ServerData extends IScriptable {
-    public let m_name: String;
-    public let m_description: String;
-    public let m_test: Bool = false;
-}
-
 public class JobType extends IScriptable {
     public let m_name: String;
     public let m_description: String;

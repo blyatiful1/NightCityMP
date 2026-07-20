@@ -10,11 +10,9 @@ public class MultiplayerGameController extends inkGameController {
     public let m_audioSystem: wref<AudioSystem>;
     public let m_uiSystem: wref<UISystem>;
     public let m_repeatingScrollActionEnabled: Bool = false;
-    public let m_serverListLogicController: wref<ServerListController>;
     public let m_jobListLogicController: wref<JobListController>;
     public let m_deliveryListLogicController: wref<DeliveryListController>;
     public let m_emoteSelector: wref<EmoteSelector>;
-    private let m_serverListWidget: wref<inkWidget>;
     private let m_jobListWidget: wref<inkWidget>;
     private let m_deliveryListWidget: wref<inkWidget>;
     private let m_emoteSelectorWidget: wref<inkWidget>;
@@ -23,7 +21,6 @@ public class MultiplayerGameController extends inkGameController {
     private let m_scrollController: wref<inkScrollController>;
     protected let m_player: wref<PlayerPuppet>;
     private let m_connectedToServer: Bool = false;
-    private let m_serverListOpen: Bool = false;
     private let m_emoteSelectorOpen: Bool = false;
     private let m_jobListOpen: Bool = false;
     private let m_deliveryListOpen: Bool = false;
@@ -44,13 +41,9 @@ public class MultiplayerGameController extends inkGameController {
     public let m_startupAnimProxy: ref<inkAnimProxy>;
     public let m_isInVehicle: Int32 = 2;
     public let m_phoneIconWidget: wref<inkWidget>;
-    public let m_server: String;
     private let m_connectedToServerCallback: ref<CallbackHandle>;
     private let m_activeJob: Bool = false;
     private let m_activeDelivery: Bool = false;
-    // Debounce so press + hold-complete of one keystroke connect only once;
-    // key release re-arms.
-    private let m_connectRequested: Bool = false;
     // public let m_textInput: ref<TextInput>;
 
     protected cb func OnInitialize() -> Bool {
@@ -78,8 +71,9 @@ public class MultiplayerGameController extends inkGameController {
         // this.psmBB = GameInstance.GetBlackboardSystem(this.m_player.GetGame()).Get(GetAllBlackboardDefs().PlayerStateMachine);
         // this.bbListener = this.psmBB.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this, n"OnPlayerEnteredVehicle", true);
 
-        this.m_player.RegisterInputListener(this, n"UIConnectToServer");
-        // this.m_player.RegisterInputListener(this, n"UIDisconnectFromServer");
+        // NightCityMP P2: the F7 connect/disconnect hotkey is retired. Connecting is a
+        // main-menu MULTIPLAYER > JOIN action; disconnecting is the pause-menu "Leave
+        // Session" item. No connect/disconnect input listener is registered here.
         this.UpdateInputHints();
 
         this.m_username = "jackhumbert";
@@ -134,7 +128,7 @@ public class MultiplayerGameController extends inkGameController {
     protected cb func OnPositionAnimationFinish(anim: ref<inkAnimProxy>) -> Bool {
         this.m_startupAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
         this.m_phoneIconWidget.SetVisible(true);
-        this.ShowOnScreenMessage("CyberpunkMP ready - press F7 (or the <> / # key) to connect", 10.0);
+        this.ShowOnScreenMessage("CyberpunkMP ready", 6.0);
     }
 
     // On-screen fallback for FTLog (nothing captures script logs on this install).
@@ -232,8 +226,7 @@ public class MultiplayerGameController extends inkGameController {
         //     this.m_player.UnregisterInputListener(this, n"UIShop");
         //     this.m_player.RegisterInputListener(this, n"UIJob");
         // }
-        evt.AddInputHint(CreateInputHint(n"Connect to server", n"UIConnectToServer", true), !this.m_connectedToServer && !this.m_serverListOpen);
-        evt.AddInputHint(CreateInputHint(n"Disconnect from server", n"UIDisconnectFromServer", true), this.m_connectedToServer && !this.m_serverListOpen);
+        // Connect/disconnect hotkey hints retired (menu-driven JOIN + pause-menu Leave).
         evt.AddInputHint(CreateInputHint(n"Emote", n"UIEmote", true), this.m_connectedToServer && !this.m_emoteSelectorOpen);
         evt.AddInputHint(CreateInputHint(n"Cancel Job", n"UIShop", true), this.m_connectedToServer && !this.m_deliveryListOpen && this.m_activeDelivery);
         evt.AddInputHint(CreateInputHint(n"Start Job", n"UIJob", false), this.m_connectedToServer && !this.m_deliveryListOpen && !this.m_activeDelivery);
@@ -256,99 +249,20 @@ public class MultiplayerGameController extends inkGameController {
     protected func OnConnectedToServer(connected: Bool) -> Void {
         FTLog(s"[MultiplayerGameController] OnConnectedToServer");
         this.m_connectedToServer = connected;
-        // Re-arm the connect debounce here too: a successful connect
-        // unregisters the listener before BUTTON_RELEASED can arrive, which
-        // would otherwise leave the flag stuck true for the next session.
-        this.m_connectRequested = false;
         if (connected) {
-            this.ShowServerList(false);
             this.AsyncSpawnFromLocal(this.GetWidget(n"hud"), n"chat");
-            this.m_player.UnregisterInputListener(this, n"UIConnectToServer");
-            this.m_player.RegisterInputListener(this, n"UIDisconnectFromServer");
             this.m_player.RegisterInputListener(this, n"UIEmote");
             this.m_player.RegisterInputListener(this, n"UIJob");
         } else {
             this.GetWidget(n"hud") as inkCompoundWidget.RemoveChild(this.GetWidget(n"hud/chat"));
-            this.m_player.RegisterInputListener(this, n"UIConnectToServer");
-            this.m_player.UnregisterInputListener(this, n"UIDisconnectFromServer");
             this.m_player.UnregisterInputListener(this, n"UIEmote");
             this.m_player.UnregisterInputListener(this, n"UIJob");
         }
         this.UpdateInputHints();
     }
 
-// Server List
-
-    private final func ShowServerList(show: Bool) -> Void {
-        if (show) {
-            this.AsyncSpawnFromLocal(this.GetWidget(n"server_list_slot"), n"server_list", this, n"OnServerListSpawned");
-            if IsDefined(this.m_phoneIconAnimProxy) {
-                this.m_phoneIconAnimProxy.Stop();
-                this.m_phoneIconAnimProxy = null;
-            };
-            this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2ServerList");
-            this.PlayBackgroundAnim();
-        } else {
-            if IsDefined(this.m_phoneIconAnimProxy) {
-                this.m_phoneIconAnimProxy.Stop();
-                this.m_phoneIconAnimProxy = null;
-            };
-            if this.m_isInVehicle == 1 {
-                this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2Vehicle");
-            } else {
-                this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2Phone");
-            }
-            this.OnServerListClosed();
-            this.PlayBackgroundAnim(true);
-        }
-        this.m_serverListOpen = show;
-        this.UpdateInputHints();
-    }
-
-    protected cb func OnServerListSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
-        if IsDefined(widget) {
-            this.m_serverListWidget = widget;
-            // this.m_serverListWidget.RegisterToCallback(n"OnCloseServerList", this, n"OnCloseServerList");
-            this.m_serverListLogicController = widget.GetController() as ServerListController;
-            if IsDefined(this.m_serverListLogicController) {
-                this.m_uiSystem.PushGameContext(UIGameContext.ModalPopup);
-                this.m_uiSystem.RequestNewVisualState(n"inkModalPopupState");
-                TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", true, true);
-                PopupStateUtils.SetBackgroundBlur(this, true);
-                this.m_audioSystem.Play(n"ui_phone_incoming_call_positive");
-                this.m_serverListLogicController.Show();
-                this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Slow, RumblePosition.Left);
-                let blackboardSystem: ref<BlackboardSystem> = GameInstance.GetBlackboardSystem(GetGameInstance());
-                let uiBlackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UIGameData);
-                uiBlackboard.SetBool(GetAllBlackboardDefs().UIGameData.UIMultiplayerContextRequest, true, true);
-                this.EnableServerInput();
-            } else {
-                FTLog(s"[MultiplayerGameController] OnServerListSpawned - no logic controller");
-            }
-        } else {
-            FTLog(s"[MultiplayerGameController] OnServerListSpawned - no widget");
-        }
-    }
-
-    protected cb func OnServerListClosed() -> Bool {
-        if IsDefined(this.m_serverListLogicController) {
-            this.DisableServerInput();
-            this.m_audioSystem.Play(n"ui_phone_incoming_call_negative");
-            this.m_serverListLogicController.Hide();
-            this.m_repeatingScrollActionEnabled = false;
-            this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Fast, RumblePosition.Left);
-            TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", false, false);
-            PopupStateUtils.SetBackgroundBlur(this, false);
-            this.m_uiSystem.PopGameContext(UIGameContext.ModalPopup);
-            this.m_uiSystem.RestorePreviousVisualState(n"inkModalPopupState");
-            this.m_serverListLogicController = null;
-            (this.GetWidget(n"server_list_slot") as inkCompoundWidget).RemoveChild(this.m_serverListWidget);
-            this.m_serverListWidget = null;
-            let blackboardSystem: ref<BlackboardSystem> = GameInstance.GetBlackboardSystem(GetGameInstance());
-            let uiBlackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UIGameData);
-            uiBlackboard.SetBool(GetAllBlackboardDefs().UIGameData.UIMultiplayerContextRequest, false, true);
-        };
-    }
+// Popup input helpers (shared by the job / delivery lists; the legacy server-browser
+// popup that once used them is retired — connecting is now menu-driven).
 
     public final func EnableServerInput() -> Void {
         this.m_player.RegisterInputListener(this, n"popup_moveDown");
@@ -380,84 +294,6 @@ public class MultiplayerGameController extends inkGameController {
         this.m_player.UnregisterInputListener(this, n"popup_next");
         this.m_player.UnregisterInputListener(this, n"popup_moveLeft");
         this.m_player.UnregisterInputListener(this, n"popup_moveRight");
-    }
-
-    protected cb func OnCloseServerList(target: wref<inkWidget>) -> Bool {
-        // this.CloseContactList();
-    }
-
-    protected cb func OnServerListAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
-        let actionName: CName = ListenerAction.GetName(action);
-        let actionType: gameinputActionType = ListenerAction.GetType(action);
-        if Equals(actionType, gameinputActionType.REPEAT) {
-            if !this.m_repeatingScrollActionEnabled {
-                return false;
-            };
-            switch actionName {
-                case n"popup_moveDown":
-                this.m_serverListLogicController.NavigateDown();
-                break;
-                case n"popup_moveUp":
-                this.m_serverListLogicController.NavigateUp();
-                break;
-                case n"popup_moveUp_left_stick_down":
-                this.m_serverListLogicController.NavigateDown();
-                break;
-                case n"popup_moveUp_left_stick_up":
-                this.m_serverListLogicController.NavigateUp();
-            };
-        } else {
-            if Equals(actionType, gameinputActionType.BUTTON_PRESSED) {
-                if !this.m_repeatingScrollActionEnabled {
-                    this.m_repeatingScrollActionEnabled = true;
-                };
-                switch actionName {
-                case n"popup_moveDown":
-                    this.m_serverListLogicController.NavigateDown();
-                    break;
-                case n"popup_moveUp":
-                    this.m_serverListLogicController.NavigateUp();
-                    break;
-                case n"popup_moveUp_left_stick_down":
-                    this.m_serverListLogicController.NavigateDown();
-                    break;
-                case n"popup_moveUp_left_stick_up":
-                    this.m_serverListLogicController.NavigateUp();
-                    break;
-                case n"proceed":
-                    // this.AcceptAction();
-                    let serverData: wref<ServerData>;
-                    if IsDefined(this.m_serverListLogicController) {
-                        serverData = this.m_serverListLogicController.GetSelectedServerData();
-                        if IsDefined(serverData) {
-                            FTLog(s"[MultiplayerGameController] Server selected: \(serverData.m_name)");
-                            this.m_server = serverData.m_name;
-                            if serverData.m_test {
-                                this.GetUIBlackboard().SetBool(GetAllBlackboardDefs().UIGameData.UIMultiplayerConnectedToServer, true, true);
-                            } else {
-                                GameInstance.GetNetworkWorldSystem().Connect();
-                            }
-                        } else {
-                            FTLog(s"[MultiplayerGameController] No server selected");
-                        }
-                    }
-                    break;
-                case n"OpenPauseMenu":
-                    ListenerActionConsumer.DontSendReleaseEvent(consumer);
-                    break;
-                case n"cancel":
-                    this.ShowServerList(false);
-                    break;
-                case n"popup_moveRight":
-                case n"popup_next":
-                case n"popup_prior":
-                case n"popup_moveLeft":
-                    // this.SelectOtherTab();
-                    break;
-                };
-            };
-        };
-        return true;
     }
 
 // Chat
@@ -976,31 +812,9 @@ public class MultiplayerGameController extends inkGameController {
     protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
         let actionName: CName = ListenerAction.GetName(action);
         let actionType: gameinputActionType = ListenerAction.GetType(action);
+        // Connecting is menu-driven now — nothing to handle in-game until connected.
         if !this.m_connectedToServer {
-            if !this.m_serverListOpen {
-                if Equals(actionName, n"UIConnectToServer") {
-                    if Equals(actionType, gameinputActionType.BUTTON_RELEASED) {
-                        this.m_connectRequested = false;
-                    }
-                    // Trigger on press OR hold-complete — whichever the engine
-                    // emits for this hold-decorated action arrives first wins.
-                    if Equals(actionType, gameinputActionType.BUTTON_PRESSED) || Equals(actionType, gameinputActionType.BUTTON_HOLD_COMPLETE) {
-                        if !this.m_connectRequested {
-                            this.m_connectRequested = true;
-                            // this.ShowServerList(true);
-                            this.ShowOnScreenMessage("CyberpunkMP: connecting to server...", 6.0);
-                            GameInstance.GetNetworkWorldSystem().Connect();
-                        }
-                    }
-                    return true;
-                } else {
-                    return false;
-                }
-            } else {
-                if IsDefined(this.m_serverListLogicController) {
-                    return this.OnServerListAction(action, consumer);
-                };
-            }
+            return false;
         } else {
             if IsDefined(this.m_deliveryListLogicController) {
                 return this.OnDeliveryListAction(action, consumer);
@@ -1008,10 +822,9 @@ public class MultiplayerGameController extends inkGameController {
             if IsDefined(this.m_jobListLogicController) {
                 return this.OnJobListAction(action, consumer);
             };
-            if Equals(actionName, n"UIDisconnectFromServer") && Equals(actionType, gameinputActionType.BUTTON_HOLD_COMPLETE) {
-                GameInstance.GetNetworkWorldSystem().Disconnect();
-                return true;
-            } else if Equals(actionName, n"UIEmote") && Equals(actionType, gameinputActionType.BUTTON_PRESSED) && !this.m_emoteSelectorOpen {
+            // Disconnect is the pause-menu "Leave Session" item (see PauseMenuLeave.reds),
+            // no longer a hotkey.
+            if Equals(actionName, n"UIEmote") && Equals(actionType, gameinputActionType.BUTTON_PRESSED) && !this.m_emoteSelectorOpen {
                 this.ShowEmoteSelector(true);
                 return true;
             } else if Equals(actionName, n"UIEmote") && Equals(actionType, gameinputActionType.BUTTON_RELEASED) && this.m_emoteSelectorOpen {

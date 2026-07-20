@@ -110,12 +110,17 @@ public class ChatHotkeyController extends GenericHotkeyController {
   }
 
   private final func OnConnectedToServer(value: Bool) -> Void {
+    if !IsDefined(this.m_buttonHintController) {
+      return;
+    }
     if (value) {
+      this.m_buttonHintController.GetRootWidget().SetVisible(true);
       this.m_buttonHintController.SetInputAction(n"UIEnterChatMessage");
       this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.Press);
     } else {
-      this.m_buttonHintController.SetInputAction(n"UIConnectToServer");
-      this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.Hold);
+      // NightCityMP P2: the F7 connect hotkey is retired (connecting is a menu action),
+      // so there is no connect hint to show while disconnected — hide it instead.
+      this.m_buttonHintController.GetRootWidget().SetVisible(false);
     }
   }
 

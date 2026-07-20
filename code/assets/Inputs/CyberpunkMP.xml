@@ -9,16 +9,9 @@
 	<blend from="UI_EmoteSelection" to="__ANY__" event="AXIS_RESET_TO_ZERO_NO_WAIT" />
 	<blend from="UI_EmoteSelection" to="__ANY__" event="BUTTON_RELEASE_IF_TO_DOESNT_CONTAIN" />
 
-	<mapping name="UIConnectToServer_Button" type="Button" >
-		<!-- German-QWERTZ-friendly: F7 is layout-proof and unbound in vanilla
-		     (F9 is QuickLoad — do not use). IK_IntlBackslash = the dedicated <>
-		     key on ISO layouts; IK_Slash (VK_OEM_2) sits on '#' for German
-		     boards. Connect/disconnect share keys — only one is registered at
-		     a time based on connection state. -->
-		<button id="IK_F7" />
-		<button id="IK_IntlBackslash" />
-		<button id="IK_Slash" />
-    </mapping>
+	<!-- NightCityMP P2: the legacy F7 connect/disconnect hotkey is retired.
+	     Connecting is now a main-menu MULTIPLAYER > JOIN action; disconnecting is
+	     the pause-menu "Leave Session" item. No connect/disconnect key mapping. -->
 
 	<mapping name="UIEmote_Button" type="Button" >
 		<button id="IK_Period" />
@@ -32,12 +25,6 @@
 		<button id="IK_Comma" />
     </mapping>
 	
-	<mapping name="UIDisconnectFromServer_Button" type="Button" >
-		<button id="IK_F7" />
-		<button id="IK_IntlBackslash" />
-		<button id="IK_Slash" />
-    </mapping>
-
 	<!-- F6: layout-proof and unbound in vanilla; IK_Semicolon (VK_OEM_1) lands
 	     on an umlaut key on German QWERTZ. -->
 	<mapping name="UIEnterChatMessage_Button" type="Button" >
@@ -78,24 +65,8 @@
 		<action name="mouse_y" map="MouseY" priority="-1" />
     </context>
 
-    <hold action="UIConnectToServer" timeout="0.5" />
-    <hold action="UIDisconnectFromServer" timeout="0.5" />
     <hold action="UIShop" timeout="0.5" />
     <hold action="UIJob" timeout="0.5" />
-
-	<acceptedEvents action="UIConnectToServer">
-		<event name="BUTTON_HOLD_COMPLETE" />
-		<event name="BUTTON_HOLD_PROGRESS" />
-		<event name="BUTTON_PRESSED" />
-		<event name="BUTTON_RELEASED" />
-	</acceptedEvents>
-
-	<acceptedEvents action="UIDisconnectFromServer">
-		<event name="BUTTON_HOLD_COMPLETE" />
-		<event name="BUTTON_HOLD_PROGRESS" />
-		<event name="BUTTON_PRESSED" />
-		<event name="BUTTON_RELEASED" />
-	</acceptedEvents>
 
 	<acceptedEvents action="UIEnterChatMessage">
 		<event name="BUTTON_PRESSED" />
@@ -122,8 +93,6 @@
 	</acceptedEvents>
 
     <context name="UIBase" append="true">
-        <action name="UIConnectToServer" map="UIConnectToServer_Button" />
-        <action name="UIDisconnectFromServer" map="UIDisconnectFromServer_Button" />
         <action name="UIEnterChatMessage" map="UIEnterChatMessage_Button" />
         <action name="UIEmote" map="UIEmote_Button" />
         <action name="UIShop" map="UIShop_Button" />
