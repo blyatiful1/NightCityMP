@@ -8,6 +8,7 @@ on:
       - main
       - dev
       - feat/runtime-connect
+      - feat/mp-saves
 
 jobs:
   build:
