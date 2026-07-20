@@ -65,6 +65,13 @@ private func ToggleNightCityMPScreen() -> Void {
     }
     let show = !overlay.IsVisible();
     overlay.SetVisible(show);
+    if show {
+        // NCMP-INTEGRATION(P3): when the MP screen opens, call
+        // Saves.MpSaveManager.EnsureTemplatesInstalled() here so the NCMP-Template-F/M
+        // saves exist before the player reaches save selection. The Saves.* natives live
+        // on the feat/mp-saves branch and are intentionally NOT referenced yet (they do
+        // not exist in this tree — referencing them would fail the redscript gate).
+    }
     // Keyboard focus for the IP field is click-to-focus (Codeware TextInput handles
     // OnFocusReceived when the field is clicked). A programmatic focus request has no
     // inkWidget API on 2.31a; confirming in-menu keystroke capture is a live-validation
@@ -227,16 +234,32 @@ protected cb func OnNcmpJoin(e: ref<inkPointerEvent>) -> Bool {
         system.SetPendingSession(ip, port);
     }
 
+    this.RouteToMpSaveSelection();
+    return true;
+}
+
+// Save-selection step of the JOIN flow — the single P3 integration seam. Kept as its own
+// method so the MP-save filtering + save-intent call slot in at exactly one place.
+@addMethod(SingleplayerMenuGameController)
+private func RouteToMpSaveSelection() -> Void {
     // Hide before switching scenarios so a cancelled Load Game returns to a clean menu.
     if IsDefined(this.m_ncmpOverlay) {
         this.m_ncmpOverlay.SetVisible(false);
     }
 
-    // Route to the vanilla Load Game screen — the exact path the "Load Game" item takes.
+    // NCMP-INTEGRATION(P3): replace this vanilla Load Game hand-off with the MP-save flow:
+    //   (a) filter the save list to MP saves via
+    //       Saves.MpSaveManager.IsMpSaveName(SaveMetadataInfo.internalName), resolving the
+    //       saveIndex FRESH by internalName match (saveIndex is unstable);
+    //   (b) call Saves.MpSaveManager.SetPendingSave(chosenInternalName) immediately before
+    //       arming + LoadSavedGame(saveIndex).
+    // The Saves.* natives live on the feat/mp-saves branch and are intentionally NOT
+    // referenced here — they do not exist in this tree, so referencing them would fail the
+    // redscript gate (UNRESOLVED_REF). Until P3 lands, hand off to the vanilla Load Game
+    // screen (unfiltered).
     if IsDefined(this.m_menuEventDispatcher) {
         this.m_menuEventDispatcher.SpawnEvent(n"OnLoadGame");
     }
-    return true;
 }
 
 @addMethod(SingleplayerMenuGameController)
