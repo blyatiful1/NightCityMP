@@ -1,6 +1,7 @@
 .vs/
 bin/
 obj/
-CyberpunkMp.cs
+# CyberpunkMp.cs is now a hand-written, tracked binding (was CppSharp-generated).
+# CppSharp-generated leftovers from older builds remain ignored:
 CyberpunkMp-symbols.cpp
 Std.cs
