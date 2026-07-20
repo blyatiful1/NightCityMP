@@ -20,7 +20,9 @@ namespace JobSystem
     {
         // Vanilla-ish pacing: 8 real seconds per game minute.
         private const double GameSecondsPerRealSecond = 60.0 / 8.0;
-        private const string StateFile = "world-clock.txt";
+        // Anchored to the host app's base dir, not the process CWD — a
+        // restart from a different working directory must find the same file.
+        private static readonly string StateFile = Path.Combine(AppContext.BaseDirectory, "world-clock.txt");
         private const double WeatherPeriodGameSeconds = 2.0 * 3600.0; // sky changes every 2 game hours
 
         // 2.x environment weather states; cycle chosen to be mostly-clear.
@@ -75,6 +77,7 @@ namespace JobSystem
         {
             uint hours, minutes, seconds;
             string weather;
+            bool weatherChanged;
             lock (clockLock)
             {
                 var t = (long)(totalGameSeconds % 86400.0);
@@ -82,12 +85,18 @@ namespace JobSystem
                 minutes = (uint)(t / 60 % 60);
                 seconds = (uint)(t % 60);
                 weather = WeatherCycle[(long)(totalGameSeconds / WeatherPeriodGameSeconds) % WeatherCycle.Length];
+                // lastWeather compare-and-set stays under the lock: Send is
+                // reached from both the broadcast timer and player joins.
+                weatherChanged = weather != lastWeather;
+                if (weatherChanged)
+                {
+                    lastWeather = weather;
+                }
             }
             Cyberpunk.Rpc.Client.Plugins.WorldStateClient.SetWorldState(playerId, hours, minutes, seconds, new CName(weather), blend);
-            if (weather != lastWeather)
+            if (weatherChanged)
             {
                 logger.Info($"weather -> {weather}");
-                lastWeather = weather;
             }
             logger.Info($"sent {hours:D2}:{minutes:D2}:{seconds:D2} to player {playerId}");
         }
@@ -116,7 +125,11 @@ namespace JobSystem
             {
                 double total;
                 lock (clockLock) { total = totalGameSeconds; }
-                File.WriteAllText(StateFile, total.ToString("R", CultureInfo.InvariantCulture));
+                // Write-temp + atomic rename: a kill mid-write must never
+                // leave a truncated (yet still parseable) clock behind.
+                var tmp = StateFile + ".tmp";
+                File.WriteAllText(tmp, total.ToString("R", CultureInfo.InvariantCulture));
+                File.Move(tmp, StateFile, overwrite: true);
             }
             catch (Exception e)
             {

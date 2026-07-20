@@ -57,9 +57,18 @@ import CyberpunkMP.Saves.*
 // joining forever.
 public class NcmpDeferredConnect extends DelayCallback {
     public let attemptsLeft: Int32;
+    // Consecutive positive equipment reads. The loadout restore is believed
+    // atomic, but one read cannot prove it — requiring two positives 0.75s
+    // apart guards against sampling mid-restore and baking a partial outfit
+    // into the one-shot spawn upload (review finding, 2026-07-20).
+    public let readyStreak: Int32;
 
     public func Call() -> Void {
         // World left while waiting (back at menu): drop the armed connect.
+        // KNOWN ISSUE (review 2026-07-20): the pending session was already
+        // consumed at arm time, so abandoning the world here loses the armed
+        // connect until re-armed via the MULTIPLAYER menu. Proper fix lands
+        // with the M-WORLD join rework (design/DESIGN-SHAREDWORLD.md).
         let handler: wref<inkISystemRequestsHandler> = GameInstance.GetSystemRequestsHandler();
         if !IsDefined(handler) || handler.IsPreGame() {
             return;
@@ -70,12 +79,17 @@ public class NcmpDeferredConnect extends DelayCallback {
         }
         let appearance = system.GetAppearanceSystem();
         let ready = IsDefined(appearance) && appearance.IsEquipmentReady();
-        if ready || this.attemptsLeft <= 0 {
+        if (ready && this.readyStreak >= 1) || this.attemptsLeft <= 0 {
             system.Connect();
             return;
         }
         let cb = new NcmpDeferredConnect();
         cb.attemptsLeft = this.attemptsLeft - 1;
+        if ready {
+            cb.readyStreak = this.readyStreak + 1;
+        } else {
+            cb.readyStreak = 0;
+        }
         GameInstance.GetDelaySystem(GetGameInstance()).DelayCallback(cb, 0.75, false);
     }
 }

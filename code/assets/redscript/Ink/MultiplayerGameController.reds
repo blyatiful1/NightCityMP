@@ -22,6 +22,7 @@ public class MultiplayerGameController extends inkGameController {
     protected let m_player: wref<PlayerPuppet>;
     private let m_connectedToServer: Bool = false;
     private let m_emoteSelectorOpen: Bool = false;
+    private let m_emoteContextPushed: Bool = false;
     private let m_jobListOpen: Bool = false;
     private let m_deliveryListOpen: Bool = false;
     private let m_chatInputOpen: Bool = false;
@@ -419,10 +420,18 @@ public class MultiplayerGameController extends inkGameController {
         if IsDefined(widget) {
             this.m_emoteSelectorWidget = widget;
             // this.m_emoteSelectorWidget.RegisterToCallback(n"OnCloseServerList", this, n"OnCloseServerList");
+            if !this.m_emoteSelectorOpen {
+                // The player released before the async spawn completed (quick tap).
+                // Discard the just-spawned widget and never push the modal context.
+                (this.GetRootWidget() as inkCompoundWidget).RemoveChild(widget);
+                this.m_emoteSelectorWidget = null;
+                return false;
+            };
             this.m_emoteSelector = widget.GetController() as EmoteSelector;
             if IsDefined(this.m_emoteSelector) {
                 this.GetSystemRequestsHandler().PauseGame();
                 this.m_uiSystem.PushGameContext(UIGameContext.ModalPopup);
+                this.m_emoteContextPushed = true;
                 this.m_uiSystem.RequestNewVisualState(n"inkModalPopupState");
                 TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", true, true);
                 PopupStateUtils.SetBackgroundBlur(this, true);
@@ -451,31 +460,39 @@ public class MultiplayerGameController extends inkGameController {
     }
 
     protected cb func OnEmoteSelectorClosed() -> Bool {
-        if IsDefined(this.m_emoteSelector) {
+        // Gate on the pushed-context flag, not on m_emoteSelector: on a quick tap the
+        // release (this call) arrives before OnEmoteSelectorSpawned, so m_emoteSelector
+        // is still null. If no context was ever pushed there is nothing to tear down.
+        if this.m_emoteContextPushed {
             // this.DisableServerInput();
 
             this.m_player.UnregisterInputListener(this, n"mouse_x");
             this.m_player.UnregisterInputListener(this, n"mouse_y");
 
             this.m_audioSystem.Play(n"ui_phone_incoming_call_negative");
-            this.m_emoteSelector.Hide();
             this.m_repeatingScrollActionEnabled = false;
-            let emoteData = this.m_emoteSelector.GetSelectedEmoteData();
-            if IsDefined(emoteData) {
-                FTLog(s"[MultiplayerGameController] OnEmoteSelectorClosed: \(emoteData.m_name)");
-                EmoteServer.TriggerEmote(emoteData.m_name);
-            } else {
-                FTLog(s"[MultiplayerGameController] OnEmoteSelectorClosed - no emote selected");
-            }
+            if IsDefined(this.m_emoteSelector) {
+                this.m_emoteSelector.Hide();
+                let emoteData = this.m_emoteSelector.GetSelectedEmoteData();
+                if IsDefined(emoteData) {
+                    FTLog(s"[MultiplayerGameController] OnEmoteSelectorClosed: \(emoteData.m_name)");
+                    EmoteServer.TriggerEmote(emoteData.m_name);
+                } else {
+                    FTLog(s"[MultiplayerGameController] OnEmoteSelectorClosed - no emote selected");
+                }
+            };
             this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Fast, RumblePosition.Left);
             TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", false, false);
             PopupStateUtils.SetBackgroundBlur(this, false);
             this.m_uiSystem.PopGameContext(UIGameContext.ModalPopup);
             this.m_uiSystem.RestorePreviousVisualState(n"inkModalPopupState");
             this.GetSystemRequestsHandler().UnpauseGame();
+            this.m_emoteContextPushed = false;
             this.m_emoteSelector = null;
-            (this.GetRootWidget() as inkCompoundWidget).RemoveChild(this.m_emoteSelectorWidget);
-            this.m_emoteSelectorWidget = null;
+            if IsDefined(this.m_emoteSelectorWidget) {
+                (this.GetRootWidget() as inkCompoundWidget).RemoveChild(this.m_emoteSelectorWidget);
+                this.m_emoteSelectorWidget = null;
+            };
             let blackboardSystem: ref<BlackboardSystem> = GameInstance.GetBlackboardSystem(GetGameInstance());
             let uiBlackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UIGameData);
             uiBlackboard.SetBool(GetAllBlackboardDefs().UIGameData.UIEmoteSelectionContextRequest, false, true);
@@ -514,6 +531,12 @@ public class MultiplayerGameController extends inkGameController {
         if IsDefined(widget) {
             this.m_jobListWidget = widget;
             // this.m_jobListWidget.RegisterToCallback(n"OnCloseDeliveryList", this, n"OnCloseDeliveryList");
+            if !this.m_jobListOpen {
+                // Closed before the async spawn completed — discard and never push context.
+                (this.GetWidget(n"server_list_slot") as inkCompoundWidget).RemoveChild(widget);
+                this.m_jobListWidget = null;
+                return false;
+            };
             this.m_jobListLogicController = widget.GetController() as JobListController;
             if IsDefined(this.m_jobListLogicController) {
                 this.m_uiSystem.PushGameContext(UIGameContext.ModalPopup);
@@ -668,6 +691,12 @@ public class MultiplayerGameController extends inkGameController {
         if IsDefined(widget) {
             this.m_deliveryListWidget = widget;
             // this.m_deliveryListWidget.RegisterToCallback(n"OnCloseDeliveryList", this, n"OnCloseDeliveryList");
+            if !this.m_deliveryListOpen {
+                // Closed before the async spawn completed — discard and never push context.
+                (this.GetWidget(n"server_list_slot") as inkCompoundWidget).RemoveChild(widget);
+                this.m_deliveryListWidget = null;
+                return false;
+            };
             this.m_deliveryListLogicController = widget.GetController() as DeliveryListController;
             if IsDefined(this.m_deliveryListLogicController) {
                 this.m_uiSystem.PushGameContext(UIGameContext.ModalPopup);

@@ -291,8 +291,13 @@ build_player() {
   # saves are hand-produced repo assets that no CI build stages.
   info "overlaying repo assets (redscript + template saves)"
   local moddir="$stage/red4ext/plugins/zzzCyberpunkMP/assets"
+  # MIRROR, not additive overlay: the repo tree is deliberately newer than the
+  # CI artifact, so a renamed/deleted .reds must not leave its stale artifact
+  # copy behind (duplicate definitions = client compile error for every player).
+  rm -rf "$moddir/redscript"
   mkdir -p "$moddir/redscript"
   cp -a "$REPO_ROOT/code/assets/redscript/." "$moddir/redscript/"
+  find "$moddir/redscript" -name 'xmake.lua' -delete
   if compgen -G "$REPO_ROOT/code/assets/Saves/NCMP-Template-*" >/dev/null; then
     mkdir -p "$moddir/Saves"
     cp -a "$REPO_ROOT"/code/assets/Saves/NCMP-Template-* "$moddir/Saves/"
@@ -300,6 +305,7 @@ build_player() {
 
   # Docs at overlay root, name-spaced so they never clobber a game file.
   cp "$README"   "$stage/NightCityMP-README.md"
+  cp "$REPO_ROOT/INSTALL.md" "$stage/NightCityMP-INSTALL.md"
   cp "$LICENSE"  "$stage/NightCityMP-LICENSE.md"
   cp "$NOTICES"  "$stage/NightCityMP-THIRD_PARTY_NOTICES.md"
   cp "$MANIFEST" "$stage/NightCityMP-assets-manifest.json"
