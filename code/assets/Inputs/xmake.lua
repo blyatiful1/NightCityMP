@@ -5,7 +5,7 @@ rule("input")
             local sourcekind = sourcebatch.rulename
             if sourcekind == "input" then
                 for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
-                    os.cp(sourcefile, path.join(target:installdir("launcher"), "mod", "assets", "Inputs", path.basename(sourcefile) .. ".xml"))
+                    os.cp(sourcefile, path.join(target:installdir("launcher"), "red4ext", "plugins", "zzzCyberpunkMP", "assets", "Inputs", path.basename(sourcefile) .. ".xml"))
                 end
             end
         end

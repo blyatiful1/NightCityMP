@@ -4,12 +4,11 @@ rule("archive")
     --     os.cp(sourcefile, path.join(target:targetdir(), path.basename(sourcefile) .. ".archive"))
     -- end)
     on_install(function (target)
-        print("on_install")
         for _, sourcebatch in pairs(target:sourcebatches()) do
             local sourcekind = sourcebatch.rulename
             if sourcekind == "archive" then
                 for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
-                    os.cp(sourcefile, path.join(target:installdir("launcher"), "mod", "assets", "Archives", path.basename(sourcefile) .. ".archive"))
+                    os.cp(sourcefile, path.join(target:installdir("launcher"), "red4ext", "plugins", "zzzCyberpunkMP", "assets", "Archives", path.basename(sourcefile) .. ".archive"))
                 end
             end
         end

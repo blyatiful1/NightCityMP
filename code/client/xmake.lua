@@ -56,5 +56,5 @@ target("Client")
         "flecs")
 
     on_install(function (target)
-        os.cp(target:targetfile(), path.join(target:installdir("launcher"), "mod", "CyberpunkMP.dll"))
+        os.cp(target:targetfile(), path.join(target:installdir("launcher"), "red4ext", "plugins", "zzzCyberpunkMP", "CyberpunkMP.dll"))
     end)

@@ -9,7 +9,7 @@ rule("redscript")
             local sourcekind = sourcebatch.rulename
             if sourcekind == "redscript" then
                 for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
-                    os.cp(sourcefile, path.join(target:installdir("launcher"), "mod", "assets", "redscript", path.relative(sourcefile, "code/redscript/assets")))
+                    os.cp(sourcefile, path.join(target:installdir("launcher"), "red4ext", "plugins", "zzzCyberpunkMP", "assets", "redscript", path.relative(sourcefile, "code/redscript/assets")))
                 end
             end
         end
