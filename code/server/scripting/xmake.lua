@@ -80,7 +80,28 @@ target("Server.Scripting")
             progress.show(opt.progress, "${color.build.target}build codegen")
             os.runv("dotnet", {"build", sdk_gen_proj}, {envs = dotnet_envs})
             progress.show(opt.progress, "${color.build.target}codegen sdk")
-            os.runv("dotnet", table.join({"run", "--project", sdk_gen_proj, "--"}, files), {envs = dotnet_envs})
+            -- Surface the SdkGenerator's stdout/stderr. os.runv swallows child
+            -- output, which is exactly why the original Windows failure (CppSharp
+            -- silently generating nothing) was undiagnosable. iorunv captures it
+            -- so a green/red codegen is visible in CI logs, and we assert the
+            -- generated bindings actually landed.
+            try
+            {
+                function ()
+                    local outdata, errdata = os.iorunv("dotnet", table.join({"run", "--project", sdk_gen_proj, "--"}, files), {envs = dotnet_envs})
+                    print("=== SdkGenerator stdout ===\n" .. (outdata or "<empty>"))
+                    print("=== SdkGenerator stderr ===\n" .. (errdata or "<empty>"))
+                end,
+                catch
+                {
+                    function (errors)
+                        print("=== SdkGenerator FAILED ===\n" .. tostring(errors))
+                        raise(errors)
+                    end
+                }
+            }
+            local gen_cs = path.join(script, "CyberpunkSdk", "CyberpunkSdk.Internal.cs")
+            print("Internal.cs exists after codegen: " .. tostring(os.isfile(gen_cs)))
             progress.show(opt.progress, "${color.build.target}build sdk")
             os.runv("dotnet", {"publish", sdk_proj, "-o", sdk_output}, {envs = dotnet_envs})
 

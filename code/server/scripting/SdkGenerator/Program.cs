@@ -34,6 +34,12 @@ internal class CyberpunkSdk : ILibrary
 
         var parserOptions = driver.ParserOptions;
         parserOptions.AddDefines("WIN32");
+        // MSVC 14.44+ STL hard-refuses parsers older than Clang 19 (STL1000 in
+        // yvals_core.h); CppSharp 1.1.5 bundles Clang 16. This is the STL's own
+        // documented escape hatch. Our parsed headers are plain interface files,
+        // so the version gap is tolerable. CppSharp 1.2 (Clang 19) is not a drop-in
+        // (runtimes-only NuGet layout, net9+/net10+ split per platform).
+        parserOptions.AddDefines("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH");
         parserOptions.AddDefines("CPPSHARP_GENERATOR");
 
         var module = options.AddModule(Module);
@@ -64,15 +70,18 @@ internal class Program
         if (gitFolderPath == null)
             throw new Exception("This code should be ran from a Git repository!");
 
-        // Normalize directory separators to match the current environment
-        gitFolderPath = gitFolderPath.Replace('/', Path.DirectorySeparatorChar)
-                                     .Replace('\\', Path.DirectorySeparatorChar);
+        // Repository.Info.WorkingDirectory resolves the actual checkout root,
+        // including linked git worktrees. For a worktree the ".git" file points at
+        // a private gitdir under <main>/.git/worktrees/<name>/; naively trimming
+        // ".git" from that path yields the MAIN repo root and makes codegen write
+        // into the wrong tree. In a normal CI clone this equals the repo root, so
+        // behaviour there is unchanged.
+        using var repo = new LibGit2Sharp.Repository(gitFolderPath);
+        string workingDir = repo.Info.WorkingDirectory;
+        if (string.IsNullOrEmpty(workingDir))
+            throw new Exception("Repository has no working directory (bare repo?)!");
 
-        // Remove the .git part from the path
-        string repositoryRoot = gitFolderPath.TrimEnd(Path.DirectorySeparatorChar)
-                                             .Remove(gitFolderPath.LastIndexOf(".git", StringComparison.Ordinal));
-
-        return repositoryRoot;
+        return workingDir;
     }
 
     private static void Main(string[] args)
@@ -83,11 +92,17 @@ internal class Program
         {
             string root = GetGitRoot();
             string output = Path.Combine(root, @"code/server/scripting/CyberpunkSdk");
-            string outputLoader = Path.Combine(root, @"code/server/loader");
             string source = Path.Combine(root, @"code/server/native/Scripting");
 
             ConsoleDriver.Run(new CyberpunkSdk("CyberpunkSdk.Internal", output, source, fileNames));
-            ConsoleDriver.Run(new CyberpunkSdk("CyberpunkMp", outputLoader, source, new[] { "ServerAPI.h" }));
+            // NOTE: the loader-side ServerAPI binding (code/server/loader/CyberpunkMp.cs)
+            // is NO LONGER generated here. CppSharp emits Itanium (Clang) mangled
+            // DllImport EntryPoints regardless of target platform, so a generated
+            // binding can never resolve the MSVC-mangled exports of a Windows-built
+            // Server.Native.dll. The loader now ships a hand-written CyberpunkMp.cs that
+            // binds to the plain, unmangled extern "C" ServerAPI shim
+            // (code/server/native/Scripting/ServerAPIShim.cpp), whose export names are
+            // identical under both the Linux (Itanium) and Windows (MSVC) toolchains.
 
             //string sdkFile = Path.Combine(output, "CyberpunkSdk.Internal.cs");
 
