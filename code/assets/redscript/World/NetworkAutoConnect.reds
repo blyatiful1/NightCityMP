@@ -11,9 +11,26 @@ module CyberpunkMP.World
 //                         (UIMultiplayerConnectedToServer blackboard bool).
 //   * local-player-only — IsControlledByLocalPeer() rejects remote muppets and
 //                         any other puppet that is not the local V.
+//   * not-pregame       — the BARE MAIN MENU spawns a background/preview
+//                         PlayerPuppet that ALSO fires OnGameAttached and passes
+//                         both guards above (~389ms after boot). Left ungated it
+//                         fired a premature Connect() at the menu, which consumed
+//                         the one-shot pending flag and uploaded an empty
+//                         appearance (server: "CustomizationState was null" /
+//                         "instance=0x0"). inkISystemRequestsHandler.IsPreGame()
+//                         is TRUE at the main menu and only becomes FALSE once a
+//                         real save has loaded, so it is the discriminator
+//                         between the menu-preview puppet and the real post-load
+//                         V. Reached via the Codeware-provided
+//                         GameInstance.GetSystemRequestsHandler() accessor
+//                         (verified on 2.31a via the redscript compile gate).
 //   * one-shot per arm  — ClearPendingSession() consumes the pending flag before
 //                         connecting, so a re-attach (menu re-entry, save reload)
-//                         never reconnects unless the session is re-armed.
+//                         never reconnects unless the session is re-armed. It
+//                         sits INSIDE the !IsPreGame() guard, so a skipped
+//                         menu-preview attach never consumes the flag — the
+//                         pending session survives until the real post-load
+//                         attach, where it is consumed exactly once.
 //
 // Wraps a VANILLA class only: @wrapMethod on the mod's own Ink classes fails with
 // UNRESOLVED_REF (see PLAN.md). PlayerPuppet.OnGameAttached fires once the local
@@ -23,14 +40,21 @@ protected cb func OnGameAttached() -> Bool {
     let result = wrappedMethod();
 
     if this.IsControlledByLocalPeer() {
-        let system = GameInstance.GetNetworkWorldSystem();
-        if IsDefined(system) && system.HasPendingSession() {
-            let blackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGame())
-                .Get(GetAllBlackboardDefs().UIGameData);
-            let connected: Bool = blackboard.GetBool(GetAllBlackboardDefs().UIGameData.UIMultiplayerConnectedToServer);
-            if !connected {
-                system.ClearPendingSession();
-                system.Connect();
+        // Skip the main-menu background/preview puppet: only a real loaded save
+        // takes the game out of pre-game. Everything below (incl. the one-shot
+        // ClearPendingSession) is unreachable at the menu, so the pending flag
+        // survives until the real post-load attach.
+        let handler: wref<inkISystemRequestsHandler> = GameInstance.GetSystemRequestsHandler();
+        if IsDefined(handler) && !handler.IsPreGame() {
+            let system = GameInstance.GetNetworkWorldSystem();
+            if IsDefined(system) && system.HasPendingSession() {
+                let blackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGame())
+                    .Get(GetAllBlackboardDefs().UIGameData);
+                let connected: Bool = blackboard.GetBool(GetAllBlackboardDefs().UIGameData.UIMultiplayerConnectedToServer);
+                if !connected {
+                    system.ClearPendingSession();
+                    system.Connect();
+                }
             }
         }
     }
