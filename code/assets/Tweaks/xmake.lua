@@ -6,7 +6,7 @@ rule("tweak")
             local sourcekind = sourcebatch.rulename
             if sourcekind == "tweak" then
                 for _, sourcefile in ipairs(sourcebatch.sourcefiles) do
-                    os.cp(sourcefile, path.join(target:installdir("launcher"), "mod", "assets", "Tweaks", path.basename(sourcefile) .. ".tweak"))
+                    os.cp(sourcefile, path.join(target:installdir("launcher"), "red4ext", "plugins", "zzzCyberpunkMP", "assets", "Tweaks", path.basename(sourcefile) .. ".tweak"))
                 end
             end
         end

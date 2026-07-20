@@ -14,7 +14,8 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/windows-server
+      - main
+      - dev
 
 jobs:
   build:
