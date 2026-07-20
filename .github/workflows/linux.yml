@@ -61,3 +61,15 @@ jobs:
     # Build the server
     - name: Build
       run: xmake -y
+
+    # Stage the linux server tree for release-kit consumption
+    # (scripts/make-release-kit.sh --server-run <id> downloads this artifact)
+    - name: 'Stage server install'
+      run: xmake install -o distrib Server.Loader && xmake install -o distrib Server.Scripting
+
+    - name: 'Upload server artifact'
+      if: github.event_name == 'push'
+      uses: actions/upload-artifact@v4
+      with:
+        name: server-linux
+        path: distrib/

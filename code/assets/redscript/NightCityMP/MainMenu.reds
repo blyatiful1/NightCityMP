@@ -22,6 +22,7 @@ module NightCityMP.Menu
 
 import Codeware.UI.*
 import CyberpunkMP.World.*
+import CyberpunkMP.Saves.*
 
 // Default endpoint offered in the JOIN field (matches the client default port 11778).
 public func NcmpDefaultAddress() -> String = "127.0.0.1:11778"
@@ -66,11 +67,10 @@ private func ToggleNightCityMPScreen() -> Void {
     let show = !overlay.IsVisible();
     overlay.SetVisible(show);
     if show {
-        // NCMP-INTEGRATION(P3): when the MP screen opens, call
-        // Saves.MpSaveManager.EnsureTemplatesInstalled() here so the NCMP-Template-F/M
-        // saves exist before the player reaches save selection. The Saves.* natives live
-        // on the feat/mp-saves branch and are intentionally NOT referenced yet (they do
-        // not exist in this tree — referencing them would fail the redscript gate).
+        // NCMP-INTEGRATION(P3), wired at merge: install the NCMP-Template-F/M seeds
+        // (best-effort, no-op when already present or when no seeds ship yet) so they
+        // exist before the player reaches save selection.
+        MpSaveManager.EnsureTemplatesInstalled();
     }
     // Keyboard focus for the IP field is click-to-focus (Codeware TextInput handles
     // OnFocusReceived when the field is clicked). A programmatic focus request has no
