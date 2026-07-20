@@ -47,6 +47,39 @@ import CyberpunkMP.Saves.*
 //                         at attach time, so the -online path is not save-gated
 //                         (see the P3 report / DESIGN §D open questions).
 //
+// Deferred connect: the equipment scriptable data is not queryable yet at
+// OnGameAttached — observed live 2026-07-20: capture at immediate connect
+// returned 0 items (remote puppets spawned naked) while +10s probes returned
+// the full outfit. So the armed connect polls equipment readiness (via
+// AppearanceSystem.GetPlayerItems) and only then calls Connect(), which makes
+// the one-shot C++ spawn upload carry the real clothing list. A timeout still
+// connects after ~15s so a genuinely empty-equipment character can't stall
+// joining forever.
+public class NcmpDeferredConnect extends DelayCallback {
+    public let attemptsLeft: Int32;
+
+    public func Call() -> Void {
+        // World left while waiting (back at menu): drop the armed connect.
+        let handler: wref<inkISystemRequestsHandler> = GameInstance.GetSystemRequestsHandler();
+        if !IsDefined(handler) || handler.IsPreGame() {
+            return;
+        }
+        let system = GameInstance.GetNetworkWorldSystem();
+        if !IsDefined(system) {
+            return;
+        }
+        let appearance = system.GetAppearanceSystem();
+        let ready = IsDefined(appearance) && appearance.IsEquipmentReady();
+        if ready || this.attemptsLeft <= 0 {
+            system.Connect();
+            return;
+        }
+        let cb = new NcmpDeferredConnect();
+        cb.attemptsLeft = this.attemptsLeft - 1;
+        GameInstance.GetDelaySystem(GetGameInstance()).DelayCallback(cb, 0.75, false);
+    }
+}
+
 // Wraps a VANILLA class only: @wrapMethod on the mod's own Ink classes fails with
 // UNRESOLVED_REF (see PLAN.md). PlayerPuppet.OnGameAttached fires once the local
 // player enters a world, which is exactly the "load save -> auto-connect" seam.
@@ -72,7 +105,12 @@ protected cb func OnGameAttached() -> Bool {
                     if MpSaveManager.PendingSaveAllowsConnect() {
                         system.ClearPendingSession();
                         MpSaveManager.ClearPendingSave();
-                        system.Connect();
+                        // Connect deferred until equipment reads back (~1-10s)
+                        // so the spawn upload includes the outfit — see
+                        // NcmpDeferredConnect above.
+                        let cb = new NcmpDeferredConnect();
+                        cb.attemptsLeft = 20;
+                        GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(cb, 0.75, false);
                     } else {
                         // Armed, but the recorded save is not an NCMP- MP save:
                         // fully disarm without connecting. Never auto-connect a

@@ -286,6 +286,18 @@ build_player() {
     unzip -oq "${ASSET_PATHS[$name]}" -d "$stage"
   done
 
+  # First-party assets whose source of truth is the repo tree, not CI:
+  # redscript is plain text (client DLL unaffected), and the NCMP template
+  # saves are hand-produced repo assets that no CI build stages.
+  info "overlaying repo assets (redscript + template saves)"
+  local moddir="$stage/red4ext/plugins/zzzCyberpunkMP/assets"
+  mkdir -p "$moddir/redscript"
+  cp -a "$REPO_ROOT/code/assets/redscript/." "$moddir/redscript/"
+  if compgen -G "$REPO_ROOT/code/assets/Saves/NCMP-Template-*" >/dev/null; then
+    mkdir -p "$moddir/Saves"
+    cp -a "$REPO_ROOT"/code/assets/Saves/NCMP-Template-* "$moddir/Saves/"
+  fi
+
   # Docs at overlay root, name-spaced so they never clobber a game file.
   cp "$README"   "$stage/NightCityMP-README.md"
   cp "$LICENSE"  "$stage/NightCityMP-LICENSE.md"
@@ -299,11 +311,16 @@ build_player() {
   # Sanity: the DLL must be at the load-order path.
   python3 - "$PLAYER_ZIP" <<'PY'
 import sys, zipfile
-need = "red4ext/plugins/zzzCyberpunkMP/CyberpunkMP.dll"
-names = zipfile.ZipFile(sys.argv[1]).namelist()
-sys.exit(0 if need in names else f"FATAL: {need} missing from player zip")
+need = [
+    "red4ext/plugins/zzzCyberpunkMP/CyberpunkMP.dll",
+    "red4ext/plugins/zzzCyberpunkMP/assets/redscript/World/AppearanceSystem.reds",
+    "red4ext/plugins/zzzCyberpunkMP/assets/Saves/NCMP-Template-F/sav.dat",
+]
+names = set(zipfile.ZipFile(sys.argv[1]).namelist())
+missing = [n for n in need if n not in names]
+sys.exit(0 if not missing else f"FATAL: missing from player zip: {missing}")
 PY
-  ok "verified CyberpunkMP.dll at plugin load-order path"
+  ok "verified DLL, redscript, and template save at load-order paths"
 }
 
 # ---------------------------------------------------------------------------

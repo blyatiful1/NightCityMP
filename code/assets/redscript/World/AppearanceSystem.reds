@@ -76,32 +76,92 @@ public native class AppearanceSystem extends IScriptable {
 
     // Returns raw TweakDBIDs: TDBID.ToStringDEBUG is empty without a name
     // database, so names must never round-trip over the wire.
-    private func GetPlayerItems() -> array<TweakDBID> {
+    // The loadout is persistent save state (EquipmentSystemPlayerData
+    // m_equipment) restored by the EquipmentSystem scriptable system AFTER the
+    // ccstate becomes ready — at OnGameAttached both this and the physical
+    // attachment slots still read empty (observed live 2026-07-20: capture at
+    // immediate connect = 0 items, +10s probes = full outfit; vanilla source:
+    // tools/redmod/scripts/.../equipmentSystem.script OnPlayerAttach/OnRestored).
+    // Callers must wait for IsEquipmentReady() before sampling — the deferred
+    // connect in NetworkAutoConnect.reds does exactly that.
+    public func GetPlayerItems() -> array<TweakDBID> {
         let player = GetPlayer(GetGameInstance());
         let items: array<TweakDBID>;
+        let transactionSystem = GameInstance.GetTransactionSystem(GetGameInstance());
         let equipData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(player);
-        let equipAreas: array<SEquipArea>;
+        let areas: array<gamedataEquipmentArea> = [
+            gamedataEquipmentArea.Head,
+            gamedataEquipmentArea.Face,
+            gamedataEquipmentArea.OuterChest,
+            gamedataEquipmentArea.InnerChest,
+            gamedataEquipmentArea.Legs,
+            gamedataEquipmentArea.Feet,
+            gamedataEquipmentArea.Outfit
+        ];
         if IsDefined(equipData) {
-            equipAreas = equipData.GetPaperDollEquipAreas();
+            let i: Int32 = 0;
+            while i < ArraySize(areas) {
+                let tdbid = ItemID.GetTDBID(equipData.GetActiveItem(areas[i]));
+                if TDBID.IsValid(tdbid) && !ArrayContains(items, tdbid) {
+                    ArrayPush(items, tdbid);
+                }
+                i += 1;
+            }
         }
+        let slots: array<TweakDBID> = [
+            t"AttachmentSlots.Head",
+            t"AttachmentSlots.Eyes",
+            t"AttachmentSlots.Chest",
+            t"AttachmentSlots.Torso",
+            t"AttachmentSlots.Legs",
+            t"AttachmentSlots.Feet",
+            t"AttachmentSlots.Outfit",
+            t"AttachmentSlots.WeaponRight"
+        ];
+        let j: Int32 = 0;
+        while j < ArraySize(slots) {
+            let obj = transactionSystem.GetItemInSlot(player, slots[j]);
+            if IsDefined(obj) {
+                let tdbid = ItemID.GetTDBID(obj.GetItemID());
+                if TDBID.IsValid(tdbid) && !ArrayContains(items, tdbid) {
+                    ArrayPush(items, tdbid);
+                }
+            }
+            j += 1;
+        }
+        return items;
+    }
+
+    // Readiness probe for the deferred connect. Gates ONLY on the loadout
+    // (m_equipment), which the save restore populates atomically as a unit —
+    // NOT on the physical attachment slots, which fill per-garment and would
+    // report a partial outfit as ready.
+    public func IsEquipmentReady() -> Bool {
+        let player = GetPlayer(GetGameInstance());
+        if !IsDefined(player) {
+            return false;
+        }
+        let equipData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(player);
+        if !IsDefined(equipData) {
+            return false;
+        }
+        let areas: array<gamedataEquipmentArea> = [
+            gamedataEquipmentArea.Head,
+            gamedataEquipmentArea.Face,
+            gamedataEquipmentArea.OuterChest,
+            gamedataEquipmentArea.InnerChest,
+            gamedataEquipmentArea.Legs,
+            gamedataEquipmentArea.Feet,
+            gamedataEquipmentArea.Outfit
+        ];
         let i: Int32 = 0;
-        while i < ArraySize(equipAreas) {
-            let item = equipData.GetVisualItemInSlot(equipAreas[i].areaType);
-            let tdbid = ItemID.GetTDBID(item);
-            if TDBID.IsValid(tdbid) {
-                ArrayPush(items, tdbid);
+        while i < ArraySize(areas) {
+            if TDBID.IsValid(ItemID.GetTDBID(equipData.GetActiveItem(areas[i]))) {
+                return true;
             }
             i += 1;
         }
-        let transactionSystem = GameInstance.GetTransactionSystem(GetGameInstance());
-        let weapon = transactionSystem.GetItemInSlot(player, t"AttachmentSlots.WeaponRight");
-        if IsDefined(weapon) {
-            let weaponId = ItemID.GetTDBID(weapon.GetItemID());
-            if TDBID.IsValid(weaponId) && !ArrayContains(items, weaponId) {
-                ArrayPush(items, weaponId);
-            }
-        }
-        return items;
+        return false;
     }
 
     public let selected_entity_id: EntityID;

@@ -1,4 +1,11 @@
-# NCMP template save seeds — P3 scaffolding (TODO: hand-produce)
+# NCMP template save seeds
+
+STATUS 2026-07-20: **NCMP-Template-F is produced and live** (from a pristine
+2.31a post-prologue Female V StreetKid save; metadata `name` rewritten;
+install verified live: client logged "installed template 'NCMP-Template-F'"
+and the folder appeared in the player's Saved Games). NCMP-Template-M is
+still TODO (no male-body save exists yet to seed it from). The release kit
+overlays these seeds into the player zip (see scripts/make-release-kit.sh).
 
 This directory holds the **pristine MP template character saves** that the
 NightCityMP client installs into the player's Cyberpunk 2077 save directory.
