@@ -1,0 +1,116 @@
+name: 'Build windows server'
+
+# Builds the FULL server chain (Server.Native + Server.Scripting + Server.Loader)
+# on Windows and publishes a runnable server bundle as an artifact.
+#
+# This is deliberately a SEPARATE workflow from windows.yml (the client artifact
+# chain). The server needs SdkGenerator's CppSharp (1.1.5, bundled Clang 16) to
+# parse headers with the current VS toolchain; MSVC 14.44+ STL refuses parsers
+# older than Clang 19 (STL1000) unless _ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+# is defined (handled in SdkGenerator/Program.cs). The upstream vs_sdkver pin +
+# windows-2022 image is the proven-green combination for this toolchain.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/windows-server
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-2022]
+        arch: [x64]
+        mode: [releasedbg]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 'Checkout submodules'
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule sync --recursive
+          git submodule update --init --force --recursive --depth=1
+
+      - name: 'Cache xmake dependencies'
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/.xmake/packages
+          key: ${{ runner.os }}-2022-xmake-packages-${{ hashFiles('**/xmake.lua') }}
+          restore-keys: |
+            ${{ runner.os }}-2022-xmake-packages-
+
+      - name: 'Setup xmake'
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: v3.0.9
+          actions-cache-folder: '.xmake-cache'
+          actions-cache-key: ${{ runner.os }}-xmake-cache-3.0.9
+
+      - name: 'Setup dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9
+
+      # vs_sdkver pin mirrors upstream tiltedphoques' last known-good windows CI.
+      - name: 'Configure xmake and install dependencies'
+        run: xmake config --arch=${{ matrix.arch }} --mode=${{ matrix.mode }} --vs_sdkver=10.0.19041.0 --yes
+
+      - name: 'Build server chain'
+        run: xmake -y Server.Loader
+
+      - name: 'Verify SdkGenerator output'
+        shell: pwsh
+        run: |
+          $f = "code/server/scripting/CyberpunkSdk/CyberpunkSdk.Internal.cs"
+          if (!(Test-Path $f)) { Write-Error "Internal.cs NOT generated - SdkGenerator failed on windows"; exit 1 }
+          $lines = (Get-Content $f).Count
+          Write-Host "Internal.cs generated: $lines lines"
+          if ($lines -lt 100) { Write-Error "Internal.cs suspiciously small"; exit 1 }
+
+      - name: 'Verify loader binds plain (unmangled) ServerAPI exports'
+        shell: pwsh
+        run: |
+          $f = "code/server/loader/CyberpunkMp.cs"
+          Write-Host "--- CyberpunkMp.cs EntryPoints ---"
+          $eps = Select-String -Path $f -Pattern 'EntryPoint = "([^"]+)"' -AllMatches |
+                 ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value }
+          $eps | ForEach-Object { Write-Host $_ }
+          # Every EntryPoint must be a plain ServerAPI_* name, never an Itanium (_ZN...) mangle.
+          $bad = $eps | Where-Object { $_ -notmatch '^ServerAPI_' }
+          if ($bad) { Write-Error "Non-plain EntryPoint(s) found: $bad"; exit 1 }
+          if ($eps.Count -lt 6) { Write-Error "Expected 6 ServerAPI_* EntryPoints, found $($eps.Count)"; exit 1 }
+          Write-Host "OK: $($eps.Count) plain ServerAPI_* EntryPoints"
+
+      - name: 'Dump Server.Native exports (mangling ground truth)'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $dll = Get-ChildItem -Recurse build -Filter Server.Native.dll | Select-Object -First 1
+          if ($dll) {
+            $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+            $dumpbin = Get-ChildItem -Recurse "$vsPath\VC\Tools\MSVC" -Filter dumpbin.exe | Where-Object FullName -match 'Hostx64\\x64' | Select-Object -First 1
+            Write-Host "--- Server.Native.dll exports (grep ServerAPI_) ---"
+            & $dumpbin.FullName /exports $dll.FullName | Select-String 'ServerAPI_'
+          } else { Write-Host "Server.Native.dll not found in build/" }
+
+      # Assemble a runnable server bundle. install has no dep-closure, so each
+      # server target is installed explicitly, deepest dependency first.
+      - name: 'Assemble server bundle'
+        run: |
+          xmake install -o distrib Server.Native
+          xmake install -o distrib Server.Scripting
+          xmake install -o distrib Server.Loader
+
+      - name: 'Upload runnable server bundle'
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-server
+          path: |
+            distrib/launcher/server
+            code/server/scripting/CyberpunkSdk/CyberpunkSdk.Internal.cs
+          if-no-files-found: warn
