@@ -32,11 +32,14 @@ The goal is that playing with friends works like a Minecraft LAN session:
 
 Requirements: Cyberpunk 2077 **2.31a** (GOG/Steam/Epic; Proton works — this project is developed on Linux).
 
-1. Download the latest release zip (GitHub Releases — first packaged release coming soon; until then, the client mod is built by CI on every push, see Actions → *Build windows* → `Artifacts.zip`, and needs the runtime stack below).
-2. Extract it over your game root folder (the one containing `bin/`, `archive/`, `r6/`).
-3. Start the game. Until the main-menu UI lands, connecting uses launch args `--launcher-skip --online --ip=<HOST> --port=11778` and F7 in-game (F6 = chat).
+1. **Download the player kit** — `NightCityMP-<version>-player.zip` from [GitHub Releases](https://github.com/blyatiful1/NightCityMP/releases). One zip bundles the mod **and** its full runtime stack, so there is nothing else to download or install. (No public release is cut yet; until one is, you can build the kit yourself with [`scripts/make-release-kit.sh`](scripts/make-release-kit.sh) — it pulls the client from a green CI run and the exact pinned dependencies in [`release/assets-manifest.json`](release/assets-manifest.json), verifying every one against its SHA-256.)
+2. **Extract it over your game root** — the folder that contains `bin/`, `archive/` and `r6/`. Every file lands where it belongs (`bin/`, `engine/`, `r6/`, `red4ext/`); nothing needs moving afterward.
+3. **Launch the game and open MULTIPLAYER from the main menu** — host a session or join a friend by address, Minecraft-style. No launch arguments, no console commands.
+   > The main-menu UI is landing now; on builds that predate it, connect with launch args `--launcher-skip --online --ip=<HOST> --port=11778` and press **F7** in-game (**F6** = chat).
 
-The full runtime stack the mod depends on: [RED4ext](https://github.com/WopsS/RED4ext) 1.30+, [redscript](https://github.com/jac3km4/redscript) 0.5.31, [Codeware](https://github.com/psiberx/cp2077-codeware) 1.20+, [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl), [TweakXL](https://github.com/psiberx/cp2077-tweak-xl), [Input Loader](https://github.com/jackhumbert/cp2077-input-loader). Release zips bundle all of it; CI artifacts contain only the mod itself.
+Everything the mod depends on is bundled and integrity-checked against pinned hashes: [RED4ext](https://github.com/wopss/RED4ext) 1.30.0, [redscript](https://github.com/jac3km4/redscript) 0.5.31, [Codeware](https://github.com/psiberx/cp2077-codeware) 1.20.3, [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.26.8, [TweakXL](https://github.com/psiberx/cp2077-tweak-xl) 1.11.3 and [Input Loader](https://github.com/jackhumbert/cyberpunk2077-input-loader) 0.2.3 — all MIT, with full license texts in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). A raw CI `Artifacts.zip` (Actions → *Build windows*) contains **only** the mod itself and still needs that stack.
+
+> **Where to get it:** NightCityMP is distributed through [GitHub](https://github.com/blyatiful1/NightCityMP) and the project's own website **only** — never through Nexus Mods or other third-party mod platforms. The upstream license permits GitHub / own-site distribution and forbids third-party platforms.
 
 ## Hosting a server (today: Linux)
 
