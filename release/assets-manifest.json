@@ -1,0 +1,138 @@
+{
+  "schema": 1,
+  "kit": {
+    "name": "NightCityMP",
+    "version": "0.1.0",
+    "game_patch": "2.31a",
+    "note": "Pinned inventory of everything a NightCityMP release kit bundles. sha256 values are verified against the upstream GitHub release assets and are the integrity gate for scripts/make-release-kit.sh. Bump 'version' when the client build or any pin changes."
+  },
+  "client_artifact": {
+    "role": "player",
+    "produced_by": "this repository (GitHub Actions)",
+    "workflow": ".github/workflows/windows.yml",
+    "artifact_name": "build",
+    "archive": "Artifacts.zip",
+    "install_root": "red4ext/plugins/zzzCyberpunkMP/",
+    "contents_note": "34-file game-root overlay: CyberpunkMP.dll + assets/{redscript,Archives,Inputs,Tweaks}. zzz prefix keeps RED4ext load order AFTER the Codeware/ArchiveXL/TweakXL/input_loader deps it calls into.",
+    "sha256": null,
+    "sha256_note": "First-party CI output, rebuilt every push; not integrity-pinned here. The kit script fetches it from a green Windows CI run (gh run download)."
+  },
+  "server_artifact": {
+    "role": "host",
+    "produced_by": "this repository (GitHub Actions)",
+    "workflow": ".github/workflows/linux.yml",
+    "binary": "Server.Loader",
+    "build_dir": "build/linux/x86_64/release",
+    "sha256": null,
+    "sha256_note": "First-party CI output; not integrity-pinned here.",
+    "gap": "linux.yml does NOT currently upload an artifact. Until an upload-artifact step is added (or a local build/linux/x86_64/release tree is provided via --server-dir), the Linux server tarball cannot be assembled end-to-end. The kit script aborts cleanly in that case rather than shipping a partial tarball."
+  },
+  "third_party": [
+    {
+      "name": "RED4ext",
+      "source_repo": "wopss/RED4ext",
+      "version": "v1.30.0",
+      "url": "https://github.com/wopss/RED4ext/releases/download/v1.30.0/red4ext-1.30.0.zip",
+      "archive_filename": "red4ext-1.30.0.zip",
+      "sha256": "3a72225c9d2c46c99f4a4159d952b9d24366357c2423eb7ea255c84e9e11c0b0",
+      "confidence": "pinned",
+      "role": "player",
+      "layout_note": "game-root overlay: bin/x64/winmm.dll, red4ext/RED4ext.dll, red4ext/LICENSE.txt, red4ext/THIRD_PARTY_LICENSES.txt",
+      "license": {
+        "type": "MIT",
+        "holder": "Octavian Dima",
+        "source": "https://raw.githubusercontent.com/wopss/RED4ext/v1.30.0/LICENSE.md",
+        "in_archive": true
+      }
+    },
+    {
+      "name": "redscript (scc)",
+      "source_repo": "jac3km4/redscript",
+      "version": "v0.5.31",
+      "url": "https://github.com/jac3km4/redscript/releases/download/v0.5.31/redscript-v0.5.31-windows.zip",
+      "archive_filename": "redscript-v0.5.31-windows.zip",
+      "sha256": "799bbd88863f6728616f8d723c941ea15dff71ed5bbfd50c525f0d39ea0bf46b",
+      "confidence": "pinned",
+      "role": "player",
+      "layout_note": "game-root overlay: engine/tools/scc.exe, engine/tools/scc_lib.dll, engine/config/base/scripts.ini, r6/config/cybercmd/scc.toml",
+      "pin_note": "Pin held on the 0.5.x line (NOT the 1.0 prereleases). Deployed engine/tools/scc.exe + scc_lib.dll are byte-identical to this archive's contents.",
+      "license": {
+        "type": "MIT",
+        "holder": "jac3km4",
+        "source": "https://raw.githubusercontent.com/jac3km4/redscript/v0.5.31/LICENSE",
+        "in_archive": false,
+        "in_archive_note": "This release archive ships NO license file. THIRD_PARTY_NOTICES.md carries the MIT text fetched from the tagged source."
+      }
+    },
+    {
+      "name": "Codeware",
+      "source_repo": "psiberx/cp2077-codeware",
+      "version": "v1.20.3",
+      "url": "https://github.com/psiberx/cp2077-codeware/releases/download/v1.20.3/Codeware-1.20.3.zip",
+      "archive_filename": "Codeware-1.20.3.zip",
+      "sha256": "9a53e9b368f1603013985ecb6a8d8715501e46d4c2955832446a658a746e3a0e",
+      "confidence": "pinned",
+      "role": "player",
+      "layout_note": "game-root overlay: red4ext/plugins/Codeware/{Codeware.dll,LICENSE,THIRD_PARTY_LICENSES,Data/,Scripts/}",
+      "pin_note": "v1.20.4-beta.1 exists upstream; pin held at 1.20.3 = compile-green baseline. Deployed Codeware.dll is byte-identical to this archive's content.",
+      "license": {
+        "type": "MIT",
+        "holder": "Pavel Siberx",
+        "source": "https://raw.githubusercontent.com/psiberx/cp2077-codeware/v1.20.3/LICENSE",
+        "in_archive": true
+      }
+    },
+    {
+      "name": "ArchiveXL",
+      "source_repo": "psiberx/cp2077-archive-xl",
+      "version": "v1.26.8",
+      "url": "https://github.com/psiberx/cp2077-archive-xl/releases/download/v1.26.8/ArchiveXL-1.26.8.zip",
+      "archive_filename": "ArchiveXL-1.26.8.zip",
+      "sha256": "bc52174451e4c8e4e3bd306013b627caf6073a124414463375e3d7fa6367387e",
+      "confidence": "pinned",
+      "role": "player",
+      "layout_note": "game-root overlay: r6/config/redsUserHints/ArchiveXL.toml, red4ext/plugins/ArchiveXL/{ArchiveXL.dll,LICENSE,THIRD_PARTY_LICENSES,Bundle/}",
+      "license": {
+        "type": "MIT",
+        "holder": "Pavel Siberx",
+        "source": "https://raw.githubusercontent.com/psiberx/cp2077-archive-xl/v1.26.8/LICENSE",
+        "in_archive": true
+      }
+    },
+    {
+      "name": "TweakXL",
+      "source_repo": "psiberx/cp2077-tweak-xl",
+      "version": "v1.11.3",
+      "url": "https://github.com/psiberx/cp2077-tweak-xl/releases/download/v1.11.3/TweakXL-1.11.3.zip",
+      "archive_filename": "TweakXL-1.11.3.zip",
+      "sha256": "c5024cbc087b1958f7c0ac66c2a6030ba36546a8c3b4f367c50c6a5381834213",
+      "confidence": "pinned",
+      "role": "player",
+      "layout_note": "game-root overlay: r6/tweaks/, red4ext/plugins/TweakXL/{TweakXL.dll,LICENSE,THIRD_PARTY_LICENSES,Data/,Scripts/}",
+      "license": {
+        "type": "MIT",
+        "holder": "Pavel Siberx",
+        "source": "https://raw.githubusercontent.com/psiberx/cp2077-tweak-xl/v1.11.3/LICENSE",
+        "in_archive": true
+      }
+    },
+    {
+      "name": "Input Loader",
+      "source_repo": "jackhumbert/cyberpunk2077-input-loader",
+      "version": "v0.2.3",
+      "url": "https://github.com/jackhumbert/cyberpunk2077-input-loader/releases/download/v0.2.3/input_loader_v0.2.3.zip",
+      "archive_filename": "input_loader_v0.2.3.zip",
+      "sha256": "6011515264bfb582591bf2ce66e956ac9c7993dfb5046590ba3ee7625af603ee",
+      "confidence": "pinned",
+      "role": "player",
+      "layout_note": "game-root overlay: red4ext/plugins/input_loader/{input_loader.dll,license.md,readme.md,inputUserMappings.xml}, r6/cache/, engine/config/platform/pc/input_loader.ini",
+      "pin_note": "CONFIRM PIN: the kit ships v0.2.3 (the pinned target), but the currently DEPLOYED game install was observed running an OLDER v0.1.1 (stale leftover). v0.2.3 is the intended ship version; recommend a play-test on v0.2.3 before cutting a public release. Repo is jackhumbert/cyberpunk2077-input-loader (NOT jackhumbert/input_loader).",
+      "license": {
+        "type": "MIT",
+        "holder": "Jack Humbert",
+        "source": "https://raw.githubusercontent.com/jackhumbert/cyberpunk2077-input-loader/v0.2.3/license.md",
+        "in_archive": true
+      }
+    }
+  ]
+}
